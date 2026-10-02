@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tapestry — Castles of Scotland</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #f3ece0;
+    --dim: rgba(243, 236, 224, 0.62);
+    --faint: rgba(243, 236, 224, 0.28);
+    --gold: #e8c98a;
+    --serif: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--ink); overflow: hidden; font-family: var(--sans); }
+  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .layer { position: fixed; inset: 0; pointer-events: none; }
+  .fade { transition: opacity 1.6s ease; }
+  .hidden { opacity: 0 !important; pointer-events: none !important; }
+
+  /* loading */
+  #loading { background: #050505; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 30; }
+  #loading h1, #intro h1 { font-family: var(--serif); font-weight: 300; letter-spacing: 0.42em; font-size: clamp(34px, 6vw, 76px); margin: 0 0 0 0.42em; text-transform: uppercase; }
+  #loading .sub, #intro .sub { font-family: var(--serif); font-style: italic; font-weight: 300; font-size: clamp(16px, 2vw, 22px); color: var(--dim); margin-top: 14px; letter-spacing: 0.02em; }
+  #bar { width: min(340px, 60vw); height: 1px; background: var(--faint); margin-top: 46px; position: relative; overflow: hidden; }
+  #bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--gold); transition: width 0.4s ease; }
+  #status { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--faint); margin-top: 16px; min-height: 1em; }
+
+  /* intro over the first photograph */
+  #intro { z-index: 25; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 9vh; pointer-events: auto; cursor: pointer;
+    background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 60%); }
+  #intro .enter { margin-top: 34px; font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--faint); padding: 14px 26px; border-radius: 999px; backdrop-filter: blur(6px); background: rgba(0,0,0,0.18); }
+  #intro .keys { margin-top: 18px; font-size: 11px; color: var(--dim); letter-spacing: 0.08em; }
+
+  /* captions */
+  #caption { left: 4.5vw; bottom: 6.5vh; right: auto; top: auto; max-width: min(560px, 80vw); z-index: 10; }
+  #caption .t { font-family: var(--serif); font-weight: 400; font-size: clamp(22px, 2.6vw, 34px); letter-spacing: 0.01em; text-shadow: 0 1px 16px rgba(0,0,0,0.6); }
+  #caption .c { font-family: var(--serif); font-style: italic; font-weight: 300; font-size: clamp(15px, 1.5vw, 19px); color: var(--dim); margin-top: 6px; text-shadow: 0 1px 12px rgba(0,0,0,0.7); line-height: 1.35; }
+  #caption .rule { width: 36px; height: 1px; background: var(--gold); margin-bottom: 14px; opacity: 0.8; }
+
+  #prompt { top: auto; bottom: 18vh; left: 0; right: 0; text-align: center; z-index: 10; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink); text-shadow: 0 1px 10px rgba(0,0,0,0.8); }
+  #prompt b { display: inline-block; border: 1px solid var(--dim); border-radius: 4px; padding: 3px 8px; margin-right: 10px; font-weight: 500; letter-spacing: 0.05em; }
+
+  #hints { top: 22px; right: 26px; left: auto; bottom: auto; text-align: right; font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); z-index: 10; line-height: 2; }
+  #hints b { color: var(--dim); font-weight: 500; }
+
+  #reticle { left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(255,255,255,0.45); inset: auto; z-index: 9; }
+
+  /* pause */
+  #pause { z-index: 20; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; }
+  #pause .t { font-family: var(--serif); font-weight: 300; letter-spacing: 0.3em; font-size: 28px; text-transform: uppercase; }
+  #pause .c { margin-top: 18px; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--dim); }
+  #pause .row { margin-top: 32px; display: flex; gap: 14px; }
+  .btn { pointer-events: auto; cursor: pointer; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--faint); padding: 12px 22px; border-radius: 999px; background: rgba(0,0,0,0.25); }
+  .btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* atlas */
+  #atlas { z-index: 22; background: rgba(6,6,6,0.88); backdrop-filter: blur(8px); pointer-events: auto; overflow-y: auto; padding: 6vh 5vw 8vh; }
+  #atlas h2 { font-family: var(--serif); font-weight: 300; letter-spacing: 0.34em; text-transform: uppercase; font-size: 26px; margin: 0 0 6px; }
+  #atlas .lead { font-family: var(--serif); font-style: italic; color: var(--dim); font-size: 18px; margin-bottom: 4vh; }
+  #atlas h3 { font-family: var(--serif); font-weight: 400; font-size: 21px; letter-spacing: 0.08em; margin: 4vh 0 1.6vh; color: var(--gold); }
+  #atlas .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  #atlas figure { margin: 0; cursor: pointer; }
+  #atlas figure .thumb, #atlas figure img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; border-radius: 2px; filter: saturate(0.92); transition: transform 0.4s ease, filter 0.4s ease; }
+  #atlas figure:hover .thumb { transform: scale(1.025); filter: saturate(1.1); }
+  #atlas figcaption { font-family: var(--serif); font-size: 16px; margin-top: 8px; color: var(--ink); }
+  #atlas figcaption span { display: block; font-style: italic; color: var(--dim); font-size: 14px; margin-top: 2px; }
+  #atlas .here .thumb { outline: 1px solid var(--gold); outline-offset: 4px; }
+  #atlas .close { position: fixed; top: 22px; right: 26px; }
+
+  /* compass */
+  #compass { top: 18px; left: 50%; right: auto; bottom: auto; width: min(620px, 70vw); height: 46px; transform: translateX(-50%); z-index: 9;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
+  #compass .line { position: absolute; left: 0; right: 0; top: 13px; height: 1px; background: var(--faint); }
+  #compass .tick { position: absolute; top: 9px; width: 1px; height: 9px; background: var(--faint); }
+  #compass .card { position: absolute; top: 0; font-size: 9px; letter-spacing: 0.2em; color: var(--dim); transform: translateX(-50%); }
+  #compass .mk { position: absolute; top: 19px; transform: translateX(-50%); white-space: nowrap; text-align: center; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); text-shadow: 0 1px 8px rgba(0,0,0,0.9); }
+  #compass .mk i { display: block; width: 0; height: 0; margin: 0 auto 3px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--gold); }
+  #compass .mk.photo i { border-top-color: #fff; width: 6px; height: 6px; border: 0; background: #fff; transform: rotate(45deg); margin-bottom: 4px; }
+  #compass .mk.edge { color: var(--gold); }
+  #compass .mk span { display: block; font-size: 9.5px; color: var(--dim); letter-spacing: 0.1em; margin-top: 1px; }
+
+  /* tour */
+  #tour { top: auto; bottom: 22px; left: 50%; right: auto; transform: translateX(-50%); z-index: 11; display: flex; gap: 10px; align-items: center; pointer-events: auto; }
+  #tour .arrow { cursor: pointer; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--faint); background: rgba(0,0,0,0.3); color: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 16px; user-select: none; }
+  #tour .arrow:hover { border-color: var(--gold); color: var(--gold); }
+  #tour .label { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim); min-width: 150px; text-align: center; text-shadow: 0 1px 8px rgba(0,0,0,0.9); }
+
+  #copyright { top: auto; left: auto; right: 22px; bottom: 16px; z-index: 12; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); text-shadow: 0 1px 6px rgba(0,0,0,0.9); transition: opacity 0.8s ease; }
+  #copyright.dim { opacity: 0.35; }
+  canvas, .thumb { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+
+  #err { z-index: 40; background: #120a0a; display: none; align-items: center; justify-content: center; text-align: center; padding: 10vw; font-family: var(--serif); font-size: 20px; pointer-events: auto; }
+
+  @media (max-width: 640px) {
+    #hints { display: none; }
+    #caption { left: 16px; right: 16px; bottom: 28px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./lib/three/build/three.module.js", "three/addons/": "./lib/three/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="loading" class="layer fade">
+  <h1>Tapestry</h1>
+  <div class="sub">Castles of Scotland, woven from thirteen photographs</div>
+  <div id="bar"><i></i></div>
+  <div id="status">Gathering threads</div>
+</div>
+
+<div id="intro" class="layer fade hidden">
+  <h1>Tapestry</h1>
+  <div class="sub">Every hill, stone, cloud and blade of grass here was taken from a photograph.</div>
+  <div class="enter">Click to step into the photograph</div>
+  <div class="keys">Mouse to look · W A S D to walk · Shift to run · [ ] to travel between photographs</div>
+</div>
+
+<div id="caption" class="layer fade hidden"><div class="rule"></div><div class="t"></div><div class="c"></div></div>
+<div id="prompt" class="layer fade hidden"><b>E</b><span></span></div>
+<div id="reticle" class="layer fade hidden"></div>
+<div id="compass" class="layer fade hidden"><div class="line"></div></div>
+<div id="tour" class="layer fade hidden"><div class="arrow" id="tourPrev" title="Previous photograph  [">&#8249;</div><div class="label">Travel</div><div class="arrow" id="tourNext" title="Next photograph  ]">&#8250;</div></div>
+<div id="hints" class="layer fade hidden">
+  <div><b>M</b> atlas of photographs</div>
+  <div><b>E</b> step into a photograph</div>
+  <div><b>[ ]</b> previous / next photograph</div>
+  <div><b>F</b> fly &nbsp;·&nbsp; <b>N</b> sound</div>
+</div>
+
+<div id="pause" class="layer fade hidden">
+  <div class="t">Paused</div>
+  <div class="c">Click to return to the world</div>
+  <div class="row"><div class="btn" id="openAtlas">Atlas of photographs</div></div>
+</div>
+
+<div id="atlas" class="layer fade hidden">
+  <div class="btn close" id="closeAtlas">Close</div>
+  <h2>Atlas</h2>
+  <div class="lead">Thirteen photographs, one world. Choose one to travel into it. Photographs &copy; Nik Sargent.</div>
+  <div id="atlasBody"></div>
+</div>
+
+<div id="copyright" class="layer">Photographs &copy; Nik Sargent &middot; all rights reserved</div>
+<div id="err" class="layer"></div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

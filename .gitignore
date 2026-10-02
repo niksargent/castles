@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+# source photographs stay local; only reduced, scrambled copies are published (world/generated)
+/photos/
