@@ -108,17 +108,27 @@ export class Player {
     this.sensitivity = 0.0021;
     addEventListener('keydown', (e) => { this.keys[e.code] = true; if (e.code === 'KeyF' && this.enabled) this.fly = !this.fly; });
     addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    // click-and-drag (or touch-drag) to look; deltas from pointer positions, which every browser reports
     this.dragging = false;
-    dom.addEventListener('mousedown', () => { this.dragging = true; });
-    addEventListener('mouseup', () => { this.dragging = false; });
-    addEventListener('mousemove', (e) => {
-      const locked = document.pointerLockElement === this.dom;
-      if (!this.enabled || (!locked && !this.dragging)) return;
-      this.yaw += e.movementX * this.sensitivity;
-      this.pitch -= e.movementY * this.sensitivity;
-      this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
-      this.lookDelta += Math.abs(e.movementX) + Math.abs(e.movementY);
+    this.lastX = 0; this.lastY = 0;
+    dom.addEventListener('pointerdown', (e) => {
+      this.dragging = true; this.lastX = e.clientX; this.lastY = e.clientY;
+      dom.setPointerCapture?.(e.pointerId);
     });
+    const end = (e) => { this.dragging = false; dom.releasePointerCapture?.(e.pointerId); };
+    dom.addEventListener('pointerup', end);
+    dom.addEventListener('pointercancel', end);
+    dom.addEventListener('pointermove', (e) => {
+      if (!this.dragging) return;
+      const dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
+      this.lastX = e.clientX; this.lastY = e.clientY;
+      if (!this.enabled) return;
+      this.yaw += dx * this.sensitivity * 1.4;
+      this.pitch -= dy * this.sensitivity * 1.4;
+      this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+      this.lookDelta += Math.abs(dx) + Math.abs(dy);
+    });
+    dom.style.touchAction = 'none';
     addEventListener('blur', () => { this.keys = {}; });
   }
 

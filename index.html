@@ -17,10 +17,12 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #000; color: var(--ink); overflow: hidden; font-family: var(--sans); }
-  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  canvas#view:active { cursor: grabbing; }
   .layer { position: fixed; inset: 0; pointer-events: none; }
   .fade { transition: opacity 1.6s ease; }
-  .hidden { opacity: 0 !important; pointer-events: none !important; }
+  .hidden, .hidden * { pointer-events: none !important; }
+  .hidden { opacity: 0 !important; }
 
   /* loading */
   #loading { background: #050505; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 30; }
@@ -119,7 +121,7 @@
   <h1>Tapestry</h1>
   <div class="sub">Every hill, stone, cloud and blade of grass here was taken from a photograph.</div>
   <div class="enter">Click to step into the photograph</div>
-  <div class="keys">Mouse to look · W A S D to walk · Shift to run · [ ] to travel between photographs</div>
+  <div class="keys">Drag to look · W A S D to walk · Shift to run · [ ] to travel between photographs</div>
 </div>
 
 <div id="caption" class="layer fade hidden"><div class="rule"></div><div class="t"></div><div class="c"></div></div>

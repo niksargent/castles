@@ -22,10 +22,9 @@ const CALIB = params.get('calib');
 const DEBUG = params.has('debug');
 const WALK_FOV = 68;
 const tick = () => new Promise((r) => setTimeout(r, 0));
-function lockPointer() {
-  const c = document.getElementById('view');
-  try { const p = c.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* drag-to-look still works */ }
-}
+// Looking is click-and-drag everywhere (pointer lock felt heavy-handed, and browsers handle it
+// inconsistently on a hosted page), so this is intentionally a no-op.
+function lockPointer() {}
 
 function status(text, frac) {
   $('status').textContent = text;

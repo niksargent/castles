@@ -15,7 +15,7 @@ Then open <http://localhost:8777>. Any static server works; `serve.py` just disa
 A desktop browser with WebGL2 is required (tested on an integrated Intel Iris Xe: resolution
 adapts automatically to keep the frame rate up).
 
-**Controls** — mouse to look (click to capture the mouse; or drag), `W A S D` walk, `Shift` run,
+**Controls** — click and drag to look, `W A S D` walk, `Shift` run,
 `Space` jump, `E` step into a nearby photograph, `[` / `]` (or the on-screen arrows) fly to the
 previous / next photograph on the tour, `M` / `Tab` atlas of photographs, `F` fly, `N` sound on/off,
 `Esc` pause. A compass at the top points to each castle and the nearest photograph; light-beams

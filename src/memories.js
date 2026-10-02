@@ -20,7 +20,7 @@ export function createMemories(world, textures) {
       },
       transparent: true,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       vertexShader: /* glsl */`
         varying vec2 vUv;
         void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -110,8 +110,12 @@ export function createMemories(world, textures) {
     beamGeo.attributes.aOpacity.needsUpdate = true;
     for (const it of items) {
       const d = it.pos.distanceTo(camPos);
-      let o = THREE.MathUtils.smoothstep(d, 4, 14) * (1 - THREE.MathUtils.smoothstep(d, 260, 520));
-      o = o * 0.85 + (d > 520 ? 0 : 0);
+      // only near, and only from in front: seen from far away or behind, a pane reads as a stray tile
+      // (the light-beam pins do the long-distance finding)
+      const toCam = new THREE.Vector3().subVectors(camPos, it.mesh.position).normalize();
+      const front = new THREE.Vector3(0, 0, 1).applyQuaternion(it.mesh.quaternion);
+      const facing = THREE.MathUtils.smoothstep(toCam.dot(front), 0.25, 0.6);
+      let o = THREE.MathUtils.smoothstep(d, 4, 12) * (1 - THREE.MathUtils.smoothstep(d, 45, 80)) * facing * 0.85;
       if (hidden || it.p.index === activeIndex) o = 0;
       it.mat.uniforms.uOpacity.value += (o - it.mat.uniforms.uOpacity.value) * 0.08;
       it.mat.uniforms.uTime.value = t;
