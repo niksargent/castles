@@ -251,7 +251,9 @@ export function heightAt(x, z, landOut) {
     const dx = x - p.x, dz = z - p.z;
     if (dx * dx + dz * dz < 196) {
       const d = Math.sqrt(dx * dx + dz * dz);
-      h = lerp(h, p.y + simplex(x / 2.5, z / 2.5) * 0.15, 1 - smoothstep(2.5, 14, d));
+      // in the loch the foothold stays just under the surface (no stray islets poking out)
+      const target = p.y < 0.4 ? Math.min(p.y, -0.3) : p.y + simplex(x / 2.5, z / 2.5) * 0.15;
+      h = lerp(h, target, 1 - smoothstep(2.5, 14, d));
     }
   }
 

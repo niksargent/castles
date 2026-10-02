@@ -105,6 +105,7 @@ export class Player {
     this.wading = 0;
     this.lookDelta = 0;
     this.moveIntent = 0;
+    this.touchMove = { x: 0, y: 0 }; // virtual joystick (-1..1); y < 0 = forward
     this.sensitivity = 0.0021;
     addEventListener('keydown', (e) => { this.keys[e.code] = true; if (e.code === 'KeyF' && this.enabled) this.fly = !this.fly; });
     addEventListener('keyup', (e) => { this.keys[e.code] = false; });
@@ -113,9 +114,9 @@ export class Player {
     this.lastX = 0; this.lastY = 0;
     dom.addEventListener('pointerdown', (e) => {
       this.dragging = true; this.lastX = e.clientX; this.lastY = e.clientY;
-      dom.setPointerCapture?.(e.pointerId);
+      try { dom.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
     });
-    const end = (e) => { this.dragging = false; dom.releasePointerCapture?.(e.pointerId); };
+    const end = (e) => { this.dragging = false; try { dom.releasePointerCapture(e.pointerId); } catch (err) { /* not captured */ } };
     dom.addEventListener('pointerup', end);
     dom.addEventListener('pointercancel', end);
     dom.addEventListener('pointermove', (e) => {
@@ -134,6 +135,7 @@ export class Player {
 
   wantsToMove() {
     const k = this.keys;
+    if (this.enabled && Math.hypot(this.touchMove.x, this.touchMove.y) > 0.15) return true;
     return this.enabled && !!(k.KeyW || k.KeyA || k.KeyS || k.KeyD || k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight || k.Space);
   }
 
@@ -157,13 +159,21 @@ export class Player {
 
   update(dt) {
     const k = this.keys;
-    const fwd = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
-    const str = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
+    let fwd = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
+    let str = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
+    // touch joystick: analog; pushed to the rim it runs
+    const tm = Math.hypot(this.touchMove.x, this.touchMove.y);
+    let analog = 1;
+    if (tm > 0.12 && !fwd && !str) {
+      fwd = -this.touchMove.y / tm; str = this.touchMove.x / tm;
+      analog = Math.min(1, (tm - 0.12) / 0.7);
+    }
     this.moveIntent = this.enabled ? Math.abs(fwd) + Math.abs(str) : 0;
-    const sprint = k.ShiftLeft || k.ShiftRight;
+    const sprint = k.ShiftLeft || k.ShiftRight || tm > 0.92;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     let speed = this.fly ? (sprint ? 90 : 26) : (sprint ? 18 : 6.2);
     if (!this.enabled) speed = 0;
+    if (!sprint) speed *= analog;
     if (this.fly) {
       const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
       const dir = new THREE.Vector3(sy * cp * fwd + cy * str, sp * fwd + ((k.Space ? 1 : 0) - (k.KeyC || k.ControlLeft ? 1 : 0)), -cy * cp * fwd + sy * str);

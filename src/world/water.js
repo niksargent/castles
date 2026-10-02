@@ -85,7 +85,7 @@ export function createWater({ heightTex, hmap, groundTex, seaweedTex, renderScal
         float mirror = clamp(uMirror + (1.0 - uMirror) * fres, 0.0, 1.0);
 
         // looking down into the shallows we see the bed (ground albedo map), tinted by water
-        vec3 groundC = (huv.x > 0.0 && huv.x < 1.0 && huv.y > 0.0 && huv.y < 1.0) ? texture(uGround, huv + n.xz * 0.0006).rgb : uDeep;
+        vec3 groundC = (huv.x > 0.0 && huv.x < 1.0 && huv.y > 0.0 && huv.y < 1.0) ? texture(uGround, vec2(huv.x, 1.0 - huv.y) + n.xz * 0.0006).rgb : uDeep;
         float clarity = exp(-depth * 1.4);
         vec3 body = mix(uDeep, mix(uShallow, groundC * 0.7, 0.6), clarity);
         float seeThrough = clarity * (1.0 - fres) * 0.3 * smoothstep(0.6, 0.0, depth);
@@ -109,8 +109,9 @@ export function createWater({ heightTex, hmap, groundTex, seaweedTex, renderScal
         float f = 1.0 - exp(-pow(uFogDensity * dist, 2.0));
         col = mix(col, uFogColor, f);
 
-        vec4 pj = projectPhotos(vWPos, vec3(0.0, 1.0, 0.0));
-        gl_FragColor = vec4(mix(col, pj.rgb, pj.a), pj.a);
+        // The loch never takes photo pixels: the photographs' water is mostly *reflection*, which
+        // belongs to no surface and would lie on the water as stray fragments of castle elsewhere.
+        gl_FragColor = vec4(col, 0.0);
       }`,
   });
   const geo = new THREE.PlaneGeometry(9000, 9000, 1, 1);

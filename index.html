@@ -33,7 +33,7 @@
   #status { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--faint); margin-top: 16px; min-height: 1em; }
 
   /* intro over the first photograph */
-  #intro { z-index: 25; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 9vh; pointer-events: auto; cursor: pointer;
+  #intro { z-index: 25; padding-left: 18px; padding-right: 18px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 9vh; pointer-events: auto; cursor: pointer;
     background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 60%); }
   #intro .enter { margin-top: 34px; font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--faint); padding: 14px 26px; border-radius: 999px; backdrop-filter: blur(6px); background: rgba(0,0,0,0.18); }
   #intro .keys { margin-top: 18px; font-size: 11px; color: var(--dim); letter-spacing: 0.08em; }
@@ -96,11 +96,46 @@
   #copyright.dim { opacity: 0.35; }
   canvas, .thumb { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
 
+  #prompt.hidden { pointer-events: none; }
+  #prompt:not(.hidden) span, #prompt:not(.hidden) b { pointer-events: auto; cursor: pointer; }
+  #tour .label { cursor: pointer; pointer-events: auto; border: 1px solid transparent; border-radius: 999px; padding: 8px 14px; }
+  #tour .label:hover { border-color: var(--faint); color: var(--ink); }
+
+  /* touch joystick */
+  #joystick { position: fixed; left: 26px; bottom: 90px; width: 124px; height: 124px; border-radius: 50%; z-index: 13;
+    border: 1px solid rgba(243,236,224,0.35); background: rgba(0,0,0,0.18); backdrop-filter: blur(2px); touch-action: none; transition: opacity 0.6s ease; }
+  #joystick .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%;
+    background: rgba(243,236,224,0.32); border: 1px solid rgba(243,236,224,0.6); }
+
+  /* help */
+  #helpBtn { position: fixed; right: 22px; bottom: 40px; z-index: 14; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--faint);
+    background: rgba(0,0,0,0.3); color: var(--dim); display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; user-select: none; }
+  #helpBtn:hover { color: var(--gold); border-color: var(--gold); }
+  #help { z-index: 21; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); pointer-events: auto; }
+  #help .card { background: rgba(10,10,10,0.82); backdrop-filter: blur(8px); border: 1px solid rgba(243,236,224,0.15); border-radius: 10px; padding: 26px 32px; min-width: min(420px, 86vw); }
+  #help .h { font-family: var(--serif); font-size: 22px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 16px; color: var(--gold); }
+  #help .card > div > div { display: flex; gap: 16px; padding: 6px 0; border-bottom: 1px solid rgba(243,236,224,0.07); font-size: 13px; }
+  #help b { min-width: 110px; color: var(--ink); font-weight: 500; letter-spacing: 0.04em; }
+  #help span { color: var(--dim); }
+  #help .close { margin-top: 16px; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--faint); }
+  .keys-touch { display: none; }
+  body.touch .keys-touch { display: block; }
+  body.touch .keys-desktop { display: none; }
+  body.touch #hints { display: none; }
+  body.touch #caption { bottom: 230px; }
+  body.touch #prompt { top: 92px; bottom: auto; }
+  body.touch #prompt b { display: none; }
+  body.touch #prompt span { border: 1px solid var(--dim); border-radius: 999px; padding: 12px 18px; background: rgba(0,0,0,0.35); }
+
   #err { z-index: 40; background: #120a0a; display: none; align-items: center; justify-content: center; text-align: center; padding: 10vw; font-family: var(--serif); font-size: 20px; pointer-events: auto; }
 
   @media (max-width: 640px) {
     #hints { display: none; }
-    #caption { left: 16px; right: 16px; bottom: 28px; }
+    #caption { left: 16px; right: 16px; bottom: 230px; }
+    #compass { width: 92vw; }
+    #tour .label { min-width: 90px; }
+    #copyright { font-size: 8px; right: 12px; bottom: 6px; }
+    #helpBtn { right: 12px; bottom: 26px; }
   }
 </style>
 <script type="importmap">
@@ -121,14 +156,41 @@
   <h1>Tapestry</h1>
   <div class="sub">Every hill, stone, cloud and blade of grass here was taken from a photograph.</div>
   <div class="enter">Click to step into the photograph</div>
-  <div class="keys">Drag to look · W A S D to walk · Shift to run · [ ] to travel between photographs</div>
+  <div class="keys">Drag to look · W A S D to walk · Shift to run · [ ] to travel between photographs · H for help</div>
 </div>
 
 <div id="caption" class="layer fade hidden"><div class="rule"></div><div class="t"></div><div class="c"></div></div>
 <div id="prompt" class="layer fade hidden"><b>E</b><span></span></div>
 <div id="reticle" class="layer fade hidden"></div>
 <div id="compass" class="layer fade hidden"><div class="line"></div></div>
-<div id="tour" class="layer fade hidden"><div class="arrow" id="tourPrev" title="Previous photograph  [">&#8249;</div><div class="label">Travel</div><div class="arrow" id="tourNext" title="Next photograph  ]">&#8250;</div></div>
+<div id="tour" class="layer fade hidden"><div class="arrow" id="tourPrev" title="Previous photograph  [">&#8249;</div><div class="label" id="tourAtlas" title="Atlas of photographs  M">Atlas</div><div class="arrow" id="tourNext" title="Next photograph  ]">&#8250;</div></div>
+<div id="joystick" class="hidden"><div class="knob"></div></div>
+<div id="helpBtn" title="Controls  (H)">?</div>
+<div id="help" class="layer fade hidden">
+  <div class="card">
+    <div class="h">How to explore</div>
+    <div class="keys-desktop">
+      <div><b>Drag</b><span>look around</span></div>
+      <div><b>W A S D</b><span>walk &nbsp;(arrow keys too)</span></div>
+      <div><b>Shift</b><span>run</span></div>
+      <div><b>Space</b><span>jump</span></div>
+      <div><b>E</b><span>step into a nearby photograph</span></div>
+      <div><b>[ &nbsp; ]</b><span>fly to the previous / next photograph</span></div>
+      <div><b>M</b><span>atlas of all photographs</span></div>
+      <div><b>F</b><span>fly mode (Space up, C down)</span></div>
+      <div><b>N</b><span>sound on / off</span></div>
+      <div><b>H</b><span>show / hide this card</span></div>
+    </div>
+    <div class="keys-touch">
+      <div><b>Left thumb</b><span>joystick to walk &mdash; push to the edge to run</span></div>
+      <div><b>Drag</b><span>anywhere else to look around</span></div>
+      <div><b>Tap the prompt</b><span>to step into a photograph</span></div>
+      <div><b>&lsaquo; &nbsp; &rsaquo;</b><span>fly to the previous / next photograph</span></div>
+      <div><b>Atlas</b><span>all thirteen photographs</span></div>
+    </div>
+    <div class="close">Tap or press H to close</div>
+  </div>
+</div>
 <div id="hints" class="layer fade hidden">
   <div><b>M</b> atlas of photographs</div>
   <div><b>E</b> step into a photograph</div>

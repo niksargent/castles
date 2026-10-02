@@ -56,7 +56,13 @@ async function main() {
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
   if (!renderer.capabilities.isWebGL2) throw new Error('WebGL2 is required');
-  let pixelScale = Math.min(window.devicePixelRatio || 1, 1.25);
+  const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+  if (IS_TOUCH) {
+    document.body.classList.add('touch');
+    document.querySelector('#intro .keys').textContent = 'Drag to look · left thumb-stick to walk · ‹ › to travel between photographs';
+    document.querySelector('#intro .enter').textContent = 'Tap to step into the photograph';
+  }
+  let pixelScale = Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.0 : 1.25);
   renderer.setPixelRatio(pixelScale);
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
@@ -184,7 +190,7 @@ async function main() {
   groundRT.texture.minFilter = THREE.LinearMipmapLinearFilter;
   const water = createWater({ heightTex: hmap.tex, hmap, groundTex: groundRT.texture, seaweedTex: textures.seaweed });
   scene.add(water.mesh);
-  const grass = createGrass({ heightTex: hmap.tex, groundTex: groundRT.texture, hmap });
+  const grass = createGrass({ heightTex: hmap.tex, groundTex: groundRT.texture, hmap, count: IS_TOUCH ? 110 : 170 });
   scene.add(grass.mesh);
 
   // memories (floating photographs)
@@ -484,6 +490,47 @@ async function main() {
     }
   });
 
+  // ---- help card, tappable prompt, atlas button, touch joystick
+  function setHelp(on) { $('help').classList.toggle('hidden', !on); S.helpOpen = on; }
+  $('helpBtn').addEventListener('click', (e) => { e.stopPropagation(); setHelp(!S.helpOpen); });
+  $('help').addEventListener('click', () => setHelp(false));
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyH' || e.key === '?') setHelp(!S.helpOpen);
+    else if (e.code === 'Escape' && S.helpOpen) setHelp(false);
+  });
+  $('prompt').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (S.mode !== 'walk') return;
+    const m = memories.nearest(camera.position);
+    if (m) enterMemory(m.p.index);
+  });
+  $('tourAtlas').addEventListener('click', (e) => { e.stopPropagation(); showAtlas(); });
+
+  const joy = $('joystick'), knob = joy.querySelector('.knob');
+  let joyId = null, joyCx = 0, joyCy = 0;
+  const JOY_R = 50;
+  const joyMove = (e) => {
+    let dx = e.clientX - joyCx, dy = e.clientY - joyCy;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { dx *= JOY_R / d; dy *= JOY_R / d; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    player.touchMove.x = dx / JOY_R; player.touchMove.y = dy / JOY_R;
+  };
+  joy.addEventListener('pointerdown', (e) => {
+    e.stopPropagation(); e.preventDefault();
+    joyId = e.pointerId; try { joy.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+    const r = joy.getBoundingClientRect(); joyCx = r.left + r.width / 2; joyCy = r.top + r.height / 2;
+    joyMove(e);
+  });
+  joy.addEventListener('pointermove', (e) => { if (e.pointerId === joyId) joyMove(e); });
+  const joyEnd = (e) => {
+    if (e.pointerId !== joyId) return;
+    joyId = null; knob.style.transform = ''; player.touchMove.x = player.touchMove.y = 0;
+  };
+  joy.addEventListener('pointerup', joyEnd);
+  joy.addEventListener('pointercancel', joyEnd);
+  const updateTouchUI = () => joy.classList.toggle('hidden', !(IS_TOUCH && (S.mode === 'walk' || S.mode === 'memory') && !S.atlasOpen));
+
   // debugging / calibration API
   window.T = { meshHeightAt, THREE, scene, camera, player, projectors, zones, world, renderer, post, heightAt, landDistance, S, enterMemory, travelTo, terrain, castles, water, grass, trees, rocks, sun, sky, terrainMat, setPixelScale: (v) => { pixelScale = v; resize(); }, noAdapt: false };
 
@@ -523,8 +570,9 @@ async function main() {
       S.mode = 'memory';
       S.overlayDim = 0;
       setTimeout(() => showCaption(p0, 1e9), 600);
-      setTimeout(() => $('hints').classList.remove('hidden'), 2500);
-      setTimeout(() => $('hints').classList.add('hidden'), 16000);
+      let seen = false;
+      try { seen = localStorage.getItem('tapestry-help-seen') === '1'; localStorage.setItem('tapestry-help-seen', '1'); } catch (e) { /* private mode */ }
+      if (!seen) setTimeout(() => setHelp(true), 1800);
     }, { once: true });
   }
 
@@ -734,6 +782,7 @@ async function main() {
     }
 
     updateCompass();
+    updateTouchUI();
 
     // --- audio
     if (audio.ctx) {
@@ -758,7 +807,7 @@ async function main() {
     S.adaptT = (S.adaptT || 0) + dt;
     if (!CALIB && !window.T.noAdapt && S.time > 5 && S.adaptT > 4) {
       if (frameAvg > 42 && pixelScale > 0.7) { pixelScale = Math.max(0.7, pixelScale - 0.1); resize(); frameAvg = 30; S.adaptT = 0; }
-      else if (frameAvg < 15 && pixelScale < Math.min(window.devicePixelRatio || 1, 1.5)) { pixelScale = Math.min(1.5, pixelScale + 0.05); resize(); frameAvg = 16; S.adaptT = 0; }
+      else if (frameAvg < 15 && pixelScale < Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.0 : 1.5)) { pixelScale = Math.min(IS_TOUCH ? 1.0 : 1.5, pixelScale + 0.05); resize(); frameAvg = 16; S.adaptT = 0; }
     }
   }
   frame();

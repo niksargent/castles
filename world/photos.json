@@ -234,6 +234,6 @@
     "dun_render":      { "photo": "dunvegan",     "rect": [52.5, 26, 58, 44], "flatten": 0.9 },
     "slate":           { "photo": "edin_summer",  "rect": [30.5, 29.8, 44, 32.2] },
     "tomb":            { "photo": "edin_kirkyard","rect": [10, 52, 34, 72], "flatten": 0.9 },
-    "seaweed_water":   { "photo": "ed_heather",   "rect": [0, 58, 62, 99] }
+    "seaweed_water":   { "photo": "ed_heather",   "rect": [33, 64, 86, 99] }
   }
 }
