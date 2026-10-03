@@ -29,7 +29,7 @@ const EXTENT = 4096;
 
 function spacingFor(cx, cz) {
   const d = (x, z) => Math.hypot(cx - x, cz - z);
-  if (d(SITES.edinburgh.x, SITES.edinburgh.z) < 150) return 2.0;
+  if (d(SITES.edinburgh.x, SITES.edinburgh.z) < 190) return 2.0;
   if (d(SITES.dunvegan.x, SITES.dunvegan.z) < 100) return 2.0;
   if (d(0, 0) < 120) return 2.5;
   if (d(SITES.kirkyard.x, SITES.kirkyard.z) < 80) return 2.5;
@@ -196,20 +196,17 @@ export async function buildTerrainGeometries(onProgress) {
   const SUPER = 4; // chunks per super-chunk side
   const n = (2 * EXTENT) / CHUNK;
   const geos = [];
-  let tris = 0;
   for (let sj = 0; sj < n; sj += SUPER) for (let si = 0; si < n; si += SUPER) {
     const chunks = [];
     for (let j = sj; j < sj + SUPER; j++) for (let i = si; i < si + SUPER; i++) {
       const x0 = -EXTENT + i * CHUNK, z0 = -EXTENT + j * CHUNK;
       const sp = spacingFor(x0 + CHUNK / 2, z0 + CHUNK / 2);
       const c = buildChunk(x0, z0, CHUNK, sp);
-      tris += c.idx.length / 3;
       chunks.push(c);
     }
     geos.push(mergeChunks(chunks));
     if (onProgress && (geos.length % 8 === 0)) await onProgress(geos.length / ((n / SUPER) * (n / SUPER)));
   }
-  console.log('terrain triangles', tris);
   return geos;
 }
 

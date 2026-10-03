@@ -4,3 +4,9 @@ __pycache__/
 Thumbs.db
 # source photographs stay local; only reduced, scrambled copies are published (world/generated)
 /photos/
+
+# the finished demo films live here locally; they are not part of the site
+/video/
+
+# build-time contact sheet of the woven swatches (for inspection only)
+/world/generated/_swatches_sheet.jpg
