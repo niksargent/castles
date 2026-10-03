@@ -166,7 +166,7 @@ async function main() {
   };
   const colliders = [];
   const builders = [buildEileanDonan(), buildEDBridge(), buildEdinburgh(), buildDunvegan(), buildCottage(),
-    buildKirkyard(world.photos.find((p) => p.id === 'edin_kirkyard').camera)];
+    buildKirkyard(world.photos.find((p) => p.id === 'edin_kirkyard'))];
   const castles = new THREE.Group();
   for (const b of builders) {
     castles.add(b.build(mats));

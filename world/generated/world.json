@@ -116,13 +116,13 @@
    "caption": "Lime-bright lawns hung beneath the battlements, under a racing blue sky.",
    "camera": {
     "pos": [
-     475.9,
-     10.6,
-     22.5
+     320.9,
+     27.1,
+     -151.7
     ],
-    "yaw": 90.28,
-    "pitch": 22.77,
-    "vfov": 46
+    "yaw": 122.19,
+    "pitch": 4.47,
+    "vfov": 15.91
    },
    "style": {
     "grade": 0.2,
@@ -216,13 +216,13 @@
    "caption": "The rock at dusk: a black wood, a gold seam of light, the castle a silhouette.",
    "camera": {
     "pos": [
-     560.5,
-     11.5,
-     -132.9
+     541.6,
+     11.1,
+     -216.3
     ],
-    "yaw": 164.55,
-    "pitch": 7.59,
-    "vfov": 68.5
+    "yaw": 173.73,
+    "pitch": 7.43,
+    "vfov": 38.26
    },
    "style": {
     "grade": 0.7,
@@ -306,13 +306,13 @@
    "caption": "A sky like a forge, a rowan burning red at the foot of the walls.",
    "camera": {
     "pos": [
-     497.7,
-     12,
-     -58.7
+     404.1,
+     17.7,
+     -118.1
     ],
-    "yaw": 127.73,
-    "pitch": 17.86,
-    "vfov": 61.1
+    "yaw": 122.9,
+    "pitch": 8.76,
+    "vfov": 27.32
    },
    "style": {
     "grade": 0.6,
@@ -1108,13 +1108,13 @@
    "caption": "The castle painted onto rough canvas, a thunderhead boiling over the rock.",
    "camera": {
     "pos": [
-     489.3,
-     12,
-     -69.2
+     345.6,
+     18.3,
+     -128.5
     ],
-    "yaw": 114.41,
-    "pitch": 13.61,
-    "vfov": 52.8
+    "yaw": 113.22,
+    "pitch": 7.08,
+    "vfov": 15.36
    },
    "style": {
     "grade": 0.4,
@@ -1204,13 +1204,13 @@
    "caption": "Below the rock, a sunlit graveyard: old tombs glowing like embers in the grass.",
    "camera": {
     "pos": [
-     492.6,
-     10.7,
-     -27.3
+     281.6,
+     16.7,
+     -129.5
     ],
-    "yaw": 110.6,
-    "pitch": 8,
-    "vfov": 72
+    "yaw": 113.01,
+    "pitch": -5.35,
+    "vfov": 36.46
    },
    "style": {
     "grade": 0.35,

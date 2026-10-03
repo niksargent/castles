@@ -121,10 +121,12 @@ export function createTrees(swatchTex, colliders, swatchMeans = {}, photos = [])
     { name: 'ed_forest', tex: 'ed_forest', count: 2600, scale: [9, 15], region: { x0: -760, x1: -100, z0: -620, z1: -200 }, test: (x, z, s) => s.forest * 1.0 },
     // Edinburgh gardens round the crag foot
     { name: 'edin_foliage', tex: 'edin_foliage', count: 1000, scale: [7, 13], region: { x0: 400, x1: 820, z0: -170, z1: 230 }, test: (x, z, s) => s.forest * 1.2 },
+    // tall old trees of Princes Street Gardens hugging the north-west foot of the rock (they hide its base, as in the photographs)
+    { name: 'edin_tall', tex: 'edin_foliage', count: 700, scale: [13, 21], region: { x0: 440, x1: 640, z0: -150, z1: 40 }, test: (x, z, s) => s.forest * (s.footNW || 0) * 1.6 },
     // Dunvegan woods
     { name: 'dun_trees', tex: 'dun_trees', count: 260, scale: [6, 11], region: { x0: -312, x1: -220, z0: 500, z1: 600 }, test: (x, z, s) => s.forest * 1.5 * (z < 590 - (x + 312) * 0.3 ? 1 : 0) },
-    // rowans burning red below the walls ("Ember") — a small grove on the north-east foot
-    { name: 'edin_rowan', tex: 'edin_rowan', count: 40, scale: [5, 8], region: { x0: 600, x1: 700, z0: -110, z1: -40 }, test: (x, z, s) => s.forest * 1.5 },
+    // rowans burning red below the walls ("Ember") — a grove on the north-west foot, in Ember's view
+    { name: 'edin_rowan', tex: 'edin_rowan', count: 60, scale: [6, 10], region: { x0: 470, x1: 540, z0: -95, z1: -30 }, test: (x, z, s) => s.forest * 1.5 },
   ];
   const trees = [];
   for (const set of sets) {

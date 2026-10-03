@@ -36,9 +36,14 @@ mark every viewpoint in the world.
   fill the camera's frustum. Walk up to one and press `E` to step into it. The atlas (`M`) lets you
   travel to any of them.
 * **The world**: Eilean Donan on its island in a shallow tidal bay (you can wade the shallows and
-  cross the arched bridge), Edinburgh on its crag-and-tail with the lawn terrace, gabled house,
-  barracks, kirkyard of tomb bays and gardens below, Dunvegan on its crag above a sea-bay of
-  bracken and pebbles. Footpaths link them. A procedural soundscape (wind, water, footsteps, a drone
+  cross the arched bridge), Edinburgh on its crag-and-tail, Dunvegan on its crag above a sea-bay of
+  bracken and pebbles. Footpaths link them. Edinburgh is laid out from the castle's real plan
+  (building footprints from OpenStreetMap, `world/edinburgh_plan.json`, fetched by
+  `tools/osm_edinburgh.py`): the Hospital and War Museum at the north-west corner, the Governor's
+  House, the New Barracks running diagonally above the Western Defences' lime lawn, Crown Square, the
+  curtain walls and the gateway, so the photographs taken from Princes Street Gardens and the
+  kirkyard line up with the buildings as they really stand. Its five cameras were solved jointly
+  with the Hospital's proportions from features matched across the photographs. A procedural soundscape (wind, water, footsteps, a drone
   that changes chord with each photograph) needs no audio files.
 
 ## The photographs
@@ -47,6 +52,7 @@ The source photographs live in `photos/` locally and are **not** in the reposito
 ships reduced copies (2400 px long edge — about the largest the world ever displays them) that are
 tile-scrambled into `.dat` files: they are not viewable or downloadable as image files and are
 reassembled in memory by `src/util/scrambled.js`. Photographs © Nik Sargent, all rights reserved.
+Edinburgh Castle's plan is derived from OpenStreetMap data, © OpenStreetMap contributors (ODbL).
 To rebuild assets you need the originals in `photos/`.
 
 ## How it is built
@@ -55,6 +61,8 @@ To rebuild assets you need the originals in `photos/`.
 photos/                 the source photographs (local only, git-ignored)
 world/photos.json       the manifest: one entry per photograph (camera pose, skyline, style) + swatches
 tools/build_assets.py   the weaver: turns photos + manifest into world/generated/*
+tools/osm_edinburgh.py  fetches Edinburgh Castle's plan from OpenStreetMap -> world/edinburgh_plan.json
+world/edinburgh_plan.json  the castle's building footprints and curtain wall (metres), which the model is laid out from
 world/generated/        projector images, sky masks, cloud tiles, seamless swatches, grades, grain, world.json
 src/
   main.js               bootstrap, experience state (intro / memory / walk / travel), frame loop
@@ -64,7 +72,7 @@ src/
   world/water.js        planar mirror reflection, shallows showing the bed, floating weed from the photo
   world/vegetation.js   trees (leaf-card canopies coloured with photo foliage), boulders, GPU grass
   castles/kit.js        a small architecture kit (walls, gables, crow-steps, crenels, towers, windows, arches)
-  castles/castles.js    Eilean Donan + bridge, Edinburgh, Dunvegan, the kirkyard, the cottage
+  castles/castles.js    Eilean Donan + bridge, Edinburgh (from the plan), Dunvegan, the kirkyard (cast from its photo), the cottage
   render/worldMaterial.js  photo projection injected into every material (+ triplanar texturing)
   render/projection.js  projector cameras & their depth maps (occlusion)
   render/zones.js       soft-Voronoi zone weights -> light, fog, sky, grade

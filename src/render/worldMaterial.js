@@ -60,7 +60,9 @@ float projLinDepth(float d, vec2 nf) {
         float agree = dot(normalize(wp - uProjPos[I]), normalize(wp - uViewPos));      \
         float consist = smoothstep(0.9903, 0.9990, agree);                      \
         float farF = smoothstep(220.0, 520.0, dist);                           \
-        float w = inside * mix(occl * facing, 1.0, farF) * consist * mix(uProjW[I], uProjSkyW[I], max(max(sky, farF), uProjTight)) * uProjGeoW; \\
+        vec2 ew = smoothstep(vec2(0.0), vec2(0.22), uv) * smoothstep(vec2(0.0), vec2(0.22), 1.0 - uv); \\
+        float inF = mix(inside, ew.x * ew.y, max(sky, farF) * (1.0 - uProjTight)); \\
+        float w = inF * mix(occl * facing, 1.0, farF) * consist * mix(uProjW[I], uProjSkyW[I], max(max(sky, farF), uProjTight)) * uProjGeoW; \\
         if (w > 0.0) {                                                          \\
           OC = texture(uProjTex[I], uv).rgb;                                  \
           OW = w;                                                           \

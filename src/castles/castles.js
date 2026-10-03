@@ -8,7 +8,7 @@
 //   The kirkyard: a wall of tomb bays, an obelisk and headstones at the foot of the rock.
 import * as THREE from 'three';
 import { Builder, arch } from './kit.js';
-import { heightAt, EDIN_TOP, DUN_TOP, EDIN_LOWER_TOP, EDIN_LAWN_RISE } from '../world/geography.js';
+import { heightAt, DUN_TOP, EDIN_PLATEAU, EDIN_PLAN, EDIN_S, EDIN_INNER_PLAN, EDIN_GATE, edinW, edinLawnY, edinDist } from '../world/geography.js';
 
 // ---------------------------------------------------------------- Eilean Donan
 export function buildEileanDonan() {
@@ -124,144 +124,207 @@ export function buildEDBridge() {
 }
 
 // ---------------------------------------------------------------- Edinburgh
+// Laid out from the real plan (world/edinburgh_plan.json, OpenStreetMap): every building stands where
+// and faces how it really does, so the photographs taken from Princes Street Gardens line up with it.
+// Plan coordinates are metres (x east, z south); heights are world metres.
+function absorb(b, sb) {
+  for (const [k, v] of Object.entries(sb.bins)) (b.bins[k] ||= []).push(...v);
+  b.colliders.push(...sb.colliders);
+}
+// a sub-builder whose local x runs along the plan direction a->c, origin at plan point o, base height y
+function frameAt(o, a, c, y) {
+  const [ox, oz] = edinW(o[0], o[1]);
+  return new Builder({ x: ox, y, z: oz }, Math.atan2(-(c[1] - a[1]), c[0] - a[0]));
+}
+// oriented box of a plan polygon (axis = its longest edge), in world units
+function obb(poly) {
+  let best = 0, ax = 1, az = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [x0, z0] = poly[i], [x1, z1] = poly[(i + 1) % poly.length];
+    const l = Math.hypot(x1 - x0, z1 - z0);
+    if (l > best) { best = l; ax = (x1 - x0) / l; az = (z1 - z0) / l; }
+  }
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const [x, z] of poly) { const u = x * ax + z * az, v = -x * az + z * ax; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2;
+  const c = [cu * ax - cv * az, cu * az + cv * ax];
+  let len = (u1 - u0) * EDIN_S, wid = (v1 - v0) * EDIN_S, dir = [ax, az];
+  if (wid > len) { [len, wid] = [wid, len]; dir = [-az, ax]; }
+  return { c, len, wid, dir };
+}
+// a building extruded from its plan footprint, with a gabled or flat roof over its oriented box
+function footprint(b, poly, y0, h, roof, bins) {
+  const sh = new THREE.Shape(poly.map(([x, z]) => { const [wx, wz] = edinW(x, z); return new THREE.Vector2(wx, -wz); }));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false });
+  g.rotateX(-Math.PI / 2);
+  b.add(bins.wall, g, 0, y0, 0);
+  const o = obb(poly);
+  const sb = frameAt(o.c, [0, 0], o.dir, y0);
+  sb.collideBox(0, h / 2, 0, o.len, h, o.wid);
+  if (roof > 0) sb.gableRoof(bins.roof, bins.wall, 0, h, 0, o.len, o.wid, roof, { overhang: 0.2, crowstep: !!bins.crow, steps: 6 });
+  else sb.add(bins.wall, new THREE.BoxGeometry(o.len * 0.7, 0.6, o.wid * 0.7), 0, h + 0.3, 0);
+  absorb(b, sb);
+}
+
 export function buildEdinburgh() {
-  const T = EDIN_TOP + 4; // crag-top level (48)
+  const T = EDIN_PLATEAU;                   // the crag top the buildings stand on (48)
   const b = new Builder({ x: 0, y: 0, z: 0 }, 0);
   const G = 'edin_stone', P = 'edin_pink', W = 'edin_wall', R = 'slate', D = 'glass', F = 'trim', L = 'lawn';
+  const s = EDIN_S;
 
-  // the terraces face west, over the kirkyard
-  // LOWER CURTAIN WALL along the crag face, following it down to the south turret
-  const lowerTop = EDIN_LOWER_TOP;
-  const lw = [[545, -24], [541.5, 6], [543, 38], [547, 66]];
-  for (let i = 0; i < lw.length - 1; i++) {
-    const [ax, az] = lw[i], [bx, bz] = lw[i + 1];
-    const base = Math.min(heightAt(ax - 2, az), heightAt(bx - 2, bz)) - 2;
-    b.wall(W, ax, az, bx, bz, base, lowerTop - base, 1.8);
-    b.wall(W, ax, az, bx, bz, lowerTop, 1.0, 0.6, false);
-    b.add(W, new THREE.BoxGeometry(Math.hypot(bx - ax, bz - az) + 1, 0.25, 2.2), (ax + bx) / 2, lowerTop + 0.1, (az + bz) / 2, Math.atan2(-(bz - az), bx - ax));
-  }
-  // round turret with a conical cap at the south end, bartizan at the north end
-  b.tower(W, R, 547.5, heightAt(547, 68) - 3, 68.5, 2.6, lowerTop - heightAt(547, 68) + 7, { corbel: true, cone: 3.2, seg: 20 });
-  b.tower(W, R, 545, lowerTop - 1.5, -25, 1.1, 3.0, { cone: 1.6, seg: 12, collide: false });
-  b.cylinder(W, 0.4, 1.6, 545, lowerTop - 3.0, -25, 10, false, 1.1);
-
-  // LAWN TERRACE: sloping from the lower wall up to the foot of the upper wall
+  // ---- the Hospital / National War Museum block at the north-west corner (the gabled range above
+  // the lawn in the photographs). Plan frame: origin at its north-west corner, u east along the north
+  // face, v south down the west face.
   {
-    const g = new THREE.PlaneGeometry(1, 1, 24, 24);
-    const pos = g.attributes.position;
-    const z0 = -22, z1 = 64;
-    for (let i = 0; i < pos.count; i++) {
-      const u = pos.getX(i) + 0.5, v = pos.getY(i) + 0.5;
-      const z = z0 + (z1 - z0) * v;
-      // inner edge follows the lower wall, outer edge the upper wall
-      const xin = 543 + (z > 6 ? (z - 6) * 0.06 : (6 - z) * 0.11) + 1.2;
-      const x = xin + u * (557.5 - xin);
-      const y = lowerTop + 0.15 + u * EDIN_LAWN_RISE + Math.sin(v * 9.0) * 0.15;
-      pos.setXYZ(i, x, y, z);
+    const O = [-75.8, -52.5], U = [-54.3, -55.6];
+    const hb = frameAt(O, O, U, T - 0.5);
+    const at = (u, v) => [u * s, v * s];           // plan (u, v) -> local (x, z)
+    const box = (bin, u0, u1, v0, v1, y, h) => { const [x0, z0] = at(u0, v0), [x1, z1] = at(u1, v1); hb.box(bin, x1 - x0, h, z1 - z0, (x0 + x1) / 2, y, (z0 + z1) / 2); };
+    // proportions solved jointly with the four garden-side cameras (eave, rise, gable width)
+    const eave = 8.1, rise = 4.8;
+    // north range (ridge east-west): its great crow-stepped west gable over the corner faces the gardens
+    box(G, 0, 35.5, 0, 11.1, 0, eave);
+    { const [x0] = at(0, 0), [x1, z1] = at(35.5, 11.1); hb.gableRoof(R, G, (x0 + x1) / 2, eave, z1 / 2, x1 - x0, z1, rise, { crowstep: true, steps: 8, overhang: 0.25 }); }
+    // the lower west wing running south (ridge north-south), crow-stepped at its north end
+    box(G, 0, 6, 11.1, 17, 0, eave - 0.8);
+    { const [x1] = at(6, 0), [, z0] = at(0, 10.1), [, z1] = at(0, 17); hb.gableRoof(R, G, x1 / 2, eave - 0.8, (z0 + z1) / 2, z1 - z0, x1, 3.4, { ry: Math.PI / 2, crowstep: true, steps: 5, overhang: 0.2 }); }
+    // east wing (back), lower
+    box(G, 29, 35.5, 11.1, 29.5, 0, eave - 1.5);
+    { const [x0, z0] = at(29, 11.1), [x1, z1] = at(35.5, 29.5); hb.gableRoof(R, G, (x0 + x1) / 2, eave - 1.5, (z0 + z1) / 2, z1 - z0, x1 - x0, 3, { ry: Math.PI / 2, overhang: 0.2 }); }
+    // round stair turret at the north-east corner
+    { const [x, z] = at(36.5, 2.5); hb.tower(G, R, x, 0, z, 1.4, eave, { cone: 2.2, seg: 16 }); }
+    // dormers on the north slope, chimneys on the gables
+    for (const u of [9, 15, 21, 27]) {
+      const [x, z] = at(u, 0);
+      hb.box(G, 1.5, 1.9, 1.4, x, eave, z + 1.2, 0, false);
+      hb.gableRoof(R, G, x, eave + 1.9, z + 1.2, 1.4, 1.5, 1.0, { ry: Math.PI / 2, crowstep: true, steps: 3, overhang: 0.1 });
+      hb.windows(D, F, 'z-', z + 0.5, x, x, 1, 1, eave + 0.3, 0, 0.7, 1.1, { frame: 0.1 });
     }
-    g.computeVertexNormals();
-    // fix winding to face up
-    const idx = g.index.array;
-    for (let i = 0; i < idx.length; i += 3) { const t = idx[i]; idx[i] = idx[i + 1]; idx[i + 1] = t; }
+    { const [x, z] = at(0.6, 5.55); hb.chimney(G, x, eave + rise - 0.3, z, 0.9, 1.6, 2.2); }
+    { const [x, z] = at(35, 5.55); hb.chimney(G, x, eave + rise - 0.3, z, 0.9, 1.6, 2.2); }
+    // windows: north face, west face (three storeys)
+    { const [, z0] = at(0, 0); const [x1] = at(33, 0); hb.windows(D, F, 'z-', z0, 2.2, x1, 3, 9, 0.9, 2.5, 0.8, 1.45, { mullion: true }); }
+    { const [x0] = at(0, 0); const [, z1] = at(0, 16); hb.windows(D, F, 'x-', x0, 1.6, z1, 3, 4, 0.9, 2.5, 0.8, 1.45, { mullion: true }); hb.windows(D, F, 'x-', x0, 3.2, 5.6, 1, 2, eave + 0.8, 0, 0.7, 1.1, { frame: 0.1 }); }
+    // War Museum: west range and south range, lower Georgian blocks with dormers
+    const me = 6.6;
+    box(G, 0, 5.8, 17, 48.2, 0, me);
+    { const [x1] = at(5.8, 0), [, z0] = at(0, 17), [, z1] = at(0, 48.2); hb.gableRoof(R, G, x1 / 2, me, (z0 + z1) / 2, z1 - z0, x1, 2.8, { ry: Math.PI / 2, overhang: 0.25 }); }
+    box(G, 5.8, 35, 38, 48.6, 0, me);
+    { const [x0, z0] = at(5.8, 38), [x1, z1] = at(35, 48.6); hb.gableRoof(R, G, (x0 + x1) / 2, me, (z0 + z1) / 2, x1 - x0, z1 - z0, 3, { overhang: 0.25 }); }
+    { const [x0] = at(0, 0); const [, z0] = at(0, 18.5), [, z1] = at(0, 46.5); hb.windows(D, F, 'x-', x0, z0, z1, 2, 8, 0.9, 2.6, 0.75, 1.4); }
+    for (const v of [22, 28, 34, 40]) {
+      const [x, z] = at(0, v);
+      hb.box(G, 1.2, 1.6, 1.3, x + 1.0, me, z, 0, false);
+      hb.gableRoof(R, G, x + 1.0, me + 1.6, z, 1.2, 1.3, 0.8, { overhang: 0.1 });
+    }
+    absorb(b, hb);
+  }
+
+  // ---- the Governor's House: crow-stepped, three storeys, standing diagonally behind the Hospital
+  {
+    const a = [-25.5, -17.4], c = [-11.2, 13.9];
+    const gb = frameAt([(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], a, c, T - 1);
+    const len = Math.hypot(c[0] - a[0], c[1] - a[1]) * s, wid = 11.3 * s, eh = 8.5;
+    gb.box(G, len, eh, wid, 0, 0, 0);
+    gb.gableRoof(R, G, 0, eh, 0, len, wid, 4.4, { crowstep: true, steps: 6, overhang: 0.2 });
+    gb.windows(D, F, 'z+', wid / 2, -len / 2 + 2, len / 2 - 2, 3, 7, 1.0, 2.5, 0.75, 1.4);
+    gb.windows(D, F, 'z-', -wid / 2, -len / 2 + 2, len / 2 - 2, 3, 7, 1.0, 2.5, 0.75, 1.4);
+    gb.chimney(G, -len / 2 + 0.6, eh + 3.8, 0, 1.0, 1.5, 2.0);
+    gb.chimney(G, len / 2 - 0.6, eh + 3.8, 0, 1.0, 1.5, 2.0);
+    absorb(b, gb);
+  }
+
+  // ---- the New Barracks: a long plain block of six storeys rising from the lawn on the south-west
+  {
+    const a = [-44.0, 11.8], c = [-3.5, 61.6];
+    const base = edinLawnY(...edinW(-48, 20)) - 1.5;
+    const bb = frameAt([(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], a, c, base);
+    const len = Math.hypot(c[0] - a[0], c[1] - a[1]) * s, wid = 15 * s, eh = 53.5 - base;
+    bb.box(P, len, eh, wid, 0, 0, 0);
+    bb.gableRoof(R, P, 0, eh, 0, len, wid, 2.4, { overhang: 0.3 });
+    for (let i = 0; i < 8; i++) bb.chimney(P, -len / 2 + 3 + i * (len - 6) / 7, eh + 1.0, 0, 1.5, 0.9, 2.4);
+    // the south-west front (local +z faces the lawn) and the north-west end towards the gardens
+    bb.windows(D, F, 'z+', wid / 2, -len / 2 + 2, len / 2 - 2, 6, 16, 1.6, 2.6, 0.75, 1.4);
+    bb.windows(D, F, 'z-', -wid / 2, -len / 2 + 2, len / 2 - 2, 2, 16, 11.0, 2.6, 0.75, 1.4);
+    bb.windows(D, F, 'x-', -len / 2, -wid / 2 + 2, wid / 2 - 2, 6, 3, 1.6, 2.6, 0.75, 1.4);
+    absorb(b, bb);
+  }
+
+  // ---- everything else on the rock, extruded from its footprint
+  const DETAILED = new Set([41299976, 41299975, 41299983, 41294347]);
+  const SPEC = { // name -> [wall height, roof rise, crow-stepped] in real metres (scaled with the plan)
+    'Royal Palace': [14, 5, true], 'The Great Hall': [11, 6, false], 'Queen Ann Building': [11, 4, false],
+    'Scottish National War Memorial': [10, 5.5, true], 'Military Prison': [7, 3, false], "St Margaret's Chapel": [5, 3, false],
+    'Portcullis Gate and Argyle Tower': [13, 0], 'Gatehouse': [10, 0], "David's Tower": [6, 0], 'Cartsheds': [5, 2.5, false],
+    'The Royal Scots Regimental Museum': [8, 3, false],
+  };
+  for (const bl of EDIN_PLAN.buildings) {
+    if (DETAILED.has(bl.id)) continue;
+    // keep the road through the gateway clear of the booths that crowd it
+    const wp = bl.poly.map((q) => edinW(q[0], q[1]));
+    if (bl.name !== 'Gatehouse' && wp.some(([x, z]) => Math.abs(x - EDIN_GATE[0] + 8) < 22 && Math.abs(z - EDIN_GATE[1]) < 7)) continue;
+    const [h, roof, crow] = SPEC[bl.name] || [bl.kind === 'chapel' ? 8 : 4.5, bl.kind === 'chapel' ? 4 : 2, false];
+    const cx = bl.poly.reduce((a, p) => a + p[0], 0) / bl.poly.length, cz = bl.poly.reduce((a, p) => a + p[1], 0) / bl.poly.length;
+    const [wx, wz] = edinW(cx, cz);
+    const y0 = Math.min(heightAt(wx, wz), T) - 1;
+    footprint(b, bl.poly, y0, h * s + (T - 1 - y0), roof * s, { wall: bl.name === 'Royal Palace' || bl.name === 'Military Prison' ? P : G, roof: R, crow });
+  }
+
+  // ---- curtain walls round the rock, following the castle outline
+  const out = EDIN_PLAN.outline;
+  for (let i = 0; i < out.length; i++) {
+    const [ax, az] = edinW(...out[i]), [bx, bz] = edinW(...out[(i + 1) % out.length]);
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.6) continue;
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2, nx = -(bz - az) / len, nz = (bx - ax) / len;
+    if (Math.abs(mx - EDIN_GATE[0]) < 14 && Math.abs(mz - EDIN_GATE[1]) < 6) continue; // the gateway
+    const sgn = edinDist(mx + nx * 2, mz + nz * 2).out < 0 ? 1 : -1;   // which side is inside
+    const inY = heightAt(mx + nx * sgn * 2.5, mz + nz * sgn * 2.5), outY = heightAt(mx - nx * sgn * 3, mz - nz * sgn * 3);
+    const top = inY + 1.3, base = Math.min(outY, inY) - 2.5;
+    b.wall(W, ax, az, bx, bz, base, top - base, 1.6);
+    b.add(W, new THREE.BoxGeometry(len + 0.4, 0.22, 1.9), mx, top + 0.11, mz, Math.atan2(-(bz - az), bx - ax));
+  }
+  // the gateway at the head of the esplanade: two piers and a crenellated lintel over the road
+  {
+    const gx = EDIN_GATE[0] - 2, gz = EDIN_GATE[1], gy = heightAt(gx, gz) - 1;
+    for (const sz of [-1, 1]) b.box(W, 4.5, 9.5, 3.2, gx, gy, gz + sz * 5.4);
+    b.box(W, 4.5, 3.2, 7.6, gx, gy + 6.3, gz, 0, false);
+    b.crenelRect(W, gx, gz, 4.5, 14, gy + 9.5, 0.5, 0.8, 0.8, 0.7);
+  }
+  // round bartizans and the turret at the corners of the Western Defences
+  for (const [px, pz, r, hgt] of [[-85.7, 8.2, 2.0, 6.5], [-69.5, -92.5, 1.5, 4.5], [-108.9, -33.3, 1.5, 4.5], [-90.4, -78.5, 1.3, 4], [-6.6, -67.4, 1.4, 4.5]]) {
+    const [x, z] = edinW(px, pz);
+    const y = heightAt(x, z);
+    b.tower(W, R, x, y - 4, z, r, hgt + 4, { corbel: true, cone: r * 1.5, seg: 16 });
+  }
+
+  // ---- the massive substructure under the Hospital and War Museum, down to the lawn
+  for (let i = 1; i < EDIN_INNER_PLAN.length - 1; i++) {
+    const [ax, az] = edinW(...EDIN_INNER_PLAN[i]), [bx, bz] = edinW(...EDIN_INNER_PLAN[i + 1]);
+    const len = Math.hypot(bx - ax, bz - az), nx = (bz - az) / len, nz = -(bx - ax) / len; // outward (left of travel)
+    const o = 0.9;
+    const base = Math.min(edinLawnY(ax, az), edinLawnY(bx, bz)) - 2;
+    b.wall(W, ax + nx * o, az + nz * o, bx + nx * o, bz + nz * o, base, T + 0.6 - base, 2.4);
+  }
+
+  // ---- the lime-green lawn draped over the terrace
+  {
+    const pos = [], step = 1.6;
+    const pts = EDIN_PLAN.outline.map((p) => edinW(...p));
+    const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0]));
+    const z0 = Math.min(...pts.map((p) => p[1])), z1 = Math.max(...pts.map((p) => p[1]));
+    const on = (x, z) => { const d = edinDist(x, z); return d.terrace < -0.6 && d.out < -1.2; };
+    const P3 = (x, z) => [x, heightAt(x, z) + 0.1, z];
+    for (let x = x0; x < x1; x += step) for (let z = z0; z < z1; z += step) {
+      if (!(on(x, z) && on(x + step, z) && on(x, z + step) && on(x + step, z + step))) continue;
+      const a = P3(x, z), bq = P3(x + step, z), c = P3(x, z + step), d = P3(x + step, z + step);
+      pos.push(...a, ...c, ...bq, ...bq, ...c, ...d);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.computeVertexNormals();
     b.add(L, g, 0, 0, 0);
-    // fence along the lawn's edge
-    for (let z = -20; z < 64; z += 2.2) {
-      const xin = 543 + (z > 6 ? (z - 6) * 0.06 : (6 - z) * 0.11) + 1.6;
-      b.add(F, new THREE.CylinderGeometry(0.03, 0.03, 1.0, 5), xin, lowerTop + 0.7, z);
-    }
   }
-
-  // UPPER RETAINING WALL (massive, buttressed) holding up the buildings
-  const upX = 558;
-  b.box(W, 3.0, T - 22 + 1, 92, upX, 22, 20);
-  for (const z of [-18, 4, 30, 52]) b.box(W, 2.2, T - 34, 4, upX - 1.6, 33, z); // buttress-like projections
-  b.box(W, 0.7, 1.1, 92, upX - 1.2, T, 20, 0, true);
-
-  // GREAT GABLED HOUSE (the "Governor's House" range) — 3 storeys, steep roof, crow-stepped gables
-  const gx = 566, gz = 4, gw = 12, gl = 32, gh = 12;
-  b.box(G, gw, gh + 1, gl, gx, T - 1, gz);
-  b.gableRoof(R, G, gx, T + gh, gz, gl, gw, 7.0, { ry: Math.PI / 2, crowstep: true, steps: 7, overhang: 0.25 });
-  // projecting crow-stepped bay on the west facade
-  b.box(G, 2.2, gh + 1, 7, gx - gw / 2 - 1.0, T - 1, gz + 6);
-  b.gableRoof(R, G, gx - gw / 2 - 1.0, T + gh, gz + 6, 4.5, 7, 5.5, { ry: 0, crowstep: true, steps: 6, overhang: 0.2 });
-  // dormers on the west slope
-  for (const z of [gz - 11, gz - 5, gz + 12]) {
-    b.box(G, 2.0, 2.2, 1.8, gx - gw / 2 + 2.2, T + gh, z, 0, false);
-    b.gableRoof(R, G, gx - gw / 2 + 2.2, T + gh + 2.2, z, 2.0, 1.8, 1.1, { ry: Math.PI / 2, overhang: 0.15 });
-    b.windows(D, F, 'x-', gx - gw / 2 + 1.15, z, z, 1, 1, T + gh + 0.4, 0, 0.8, 1.2, { frame: 0.12 });
-  }
-  // chimneys
-  b.chimney(G, gx, T + gh + 6.6, gz - gl / 2 + 0.6, 2.0, 1.2, 3.0);
-  b.chimney(G, gx, T + gh + 6.6, gz + gl / 2 - 0.6, 2.0, 1.2, 3.0);
-  b.chimney(G, gx + 2.5, T + gh + 3.0, gz - 2, 1.2, 1.0, 5.5);
-  b.chimney(G, gx - gw / 2 - 1.0, T + gh + 5.0, gz + 6, 1.0, 1.0, 2.6);
-  // windows: three storeys, white frames
-  b.windows(D, F, 'x-', gx - gw / 2, gz - 14, gz + 1.5, 3, 6, T + 1.2, 3.8, 0.95, 1.8, { mullion: true });
-  b.windows(D, F, 'x-', gx - gw / 2 - 2.1, gz + 4.8, gz + 7.2, 3, 2, T + 1.2, 3.8, 0.9, 1.7, { mullion: true });
-  b.windows(D, F, 'x-', gx - gw / 2, gz + 11, gz + 15, 3, 2, T + 1.2, 3.8, 0.95, 1.8, { mullion: true });
-  b.windows(D, F, 'z+', gz + gl / 2, gx - 3.5, gx + 3.5, 3, 3, T + 1.2, 3.8, 0.95, 1.8, { mullion: true });
-  b.windows(D, F, 'z-', gz - gl / 2, gx - 3.5, gx + 3.5, 3, 3, T + 1.2, 3.8, 0.95, 1.8, { mullion: true });
-
-  // TALL BARRACK BLOCK to the south-east, five storeys
-  const tx = 585, tz = 44, tw = 36, td = 14, th = 10.5;
-  b.box(P, tw, th + 1, td, tx, T - 1, tz);
-  b.gableRoof(R, P, tx, T + th, tz, tw, td, 4.0, { overhang: 0.3 });
-  for (let i = 0; i < 6; i++) b.chimney(P, tx - tw / 2 + 3 + i * 6, T + th + 2.0, tz, 1.6, 1.0, 3.2);
-  b.chimney(P, tx - tw / 2 + 0.5, T + th + 2.5, tz - 4, 1.4, 1.0, 2.6);
-  b.windows(D, F, 'z+', tz + td / 2, tx - tw / 2 + 2.5, tx + tw / 2 - 2.5, 3, 10, T + 1.0, 3.2, 0.9, 1.75);
-  b.windows(D, F, 'z-', tz - td / 2, tx - tw / 2 + 2.5, tx + tw / 2 - 2.5, 3, 10, T + 1.0, 3.2, 0.9, 1.75);
-  b.windows(D, F, 'x-', tx - tw / 2, tz - 4, tz + 4, 3, 3, T + 1.0, 3.2, 0.9, 1.75);
-  // its own retaining wall down the crag
-  b.box(W, tw, T - 30, 3, tx, 30, tz + td / 2 + 1.5);
-
-  // NORTH RANGE (lower, dormered)
-  const nx = 586, nz = -12;
-  b.box(G, 18, 8, 9, nx, T - 1, nz);
-  b.gableRoof(R, G, nx, T + 7, nz, 18, 9, 4.2, { crowstep: false, overhang: 0.3 });
-  for (const x of [nx - 6, nx, nx + 6]) {
-    b.box(G, 1.8, 2.0, 1.6, x, T + 7, nz + 3.6, 0, false);
-    b.gableRoof(R, G, x, T + 9, nz + 3.6, 1.8, 1.6, 1.0, { overhang: 0.12 });
-  }
-  b.windows(D, F, 'z-', nz - 4.5, nx - 7, nx + 7, 2, 5, T + 1.0, 3.2, 0.9, 1.6);
-  b.windows(D, F, 'x-', nx - 9, nz - 2, nz + 2, 2, 2, T + 1.0, 3.2, 0.9, 1.6);
-
-  // CROWN SQUARE: palace, great hall, chapel
-  b.box(G, 24, 14, 16, 612, T - 1, -6);
-  b.gableRoof(R, G, 612, T + 13, -6, 24, 16, 6, { crowstep: true, steps: 6 });
-  b.tower(G, R, 600, T - 1, -14, 3.2, 19, { corbel: true, crenel: true, seg: 16 });
-  b.windows(D, F, 'z+', 2, 602, 622, 3, 5, T + 1.5, 3.8, 0.9, 1.7);
-  b.box(G, 30, 10, 11, 614, T - 1, 22);
-  b.gableRoof(R, G, 614, T + 9, 22, 30, 11, 5, {});
-  b.windows(D, F, 'z+', 27.5, 601, 627, 1, 6, T + 3, 0, 1.2, 3.2, { mullion: true });
-  b.box(G, 9, 6, 6, 636, T - 1, -10);
-  b.gableRoof(R, G, 636, T + 5, -10, 9, 6, 3, {});
-
-  // PERIMETER CURTAIN round the crag top
-  const ring = [];
-  const N = 40;
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const ex = Math.cos(a) < 0 ? 61 : 82;
-    ring.push([610 + Math.cos(a) * ex, 30 + Math.sin(a) * 50]);
-  }
-  for (let i = 0; i < N; i++) {
-    const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % N];
-    if (ax < 562 && bx < 562) continue; // the west side is the buildings
-    if (az > 36 && bz > 36 && ax < 606) continue; // barrack block
-    if (az > 55 && bz > 55 && ax < 660) continue; // open south-west skyline (as photographed)
-    const base = Math.min(heightAt(ax, az), heightAt(bx, bz)) - 2.5;
-    const top = Math.max(T + 1.2, Math.max(heightAt(ax, az), heightAt(bx, bz)) + 1.2);
-    b.wall(W, ax, az, bx, bz, base, top - base, 1.5);
-    b.crenels(W, ax, az, bx, bz, top, 1.5, 0.8, 0.8, 0.8);
-  }
-  // GATEHOUSE where the path arrives along the tail
-  const gyx = 684, gyz = 30, gy = heightAt(684, 30);
-  b.box(W, 7, 13, 6, gyx, gy - 1, gyz - 9);
-  b.box(W, 7, 13, 6, gyx, gy - 1, gyz + 9);
-  b.box(W, 7, 5, 12, gyx, gy + 6.5, gyz, 0, false);
-  b.crenelRect(W, gyx, gyz, 7, 24, gy + 12, 0.6, 0.8, 0.9, 0.7);
-
   return b;
 }
 
@@ -309,17 +372,29 @@ export function buildDunvegan() {
 }
 
 // ---------------------------------------------------------------- the kirkyard
-export function buildKirkyard(cam) {
-  // laid out along the photographer's line of sight: tomb wall on the left, lawn ahead,
-  // obelisk to the right, castle on the rock beyond.
+// Laid out from the photograph itself: points marked in the image (percent) are cast from the
+// photographer's camera onto the kirkyard ground, so the tomb wall, obelisk and stones stand
+// exactly where the picture shows them.
+export function buildKirkyard(photo) {
+  const cam = photo.camera;
+  const pc = new THREE.PerspectiveCamera(cam.vfov, photo.aspect, 0.5, 2000);
+  pc.position.set(...cam.pos); pc.rotation.order = 'YXZ';
+  pc.rotation.set(THREE.MathUtils.degToRad(cam.pitch), -THREE.MathUtils.degToRad(cam.yaw), 0);
+  pc.updateMatrixWorld(); pc.updateProjectionMatrix();
+  const gy = cam.pos[1] - 1.9;
+  const ray = (u, v) => new THREE.Vector3(u / 50 - 1, 1 - v / 50, 0.5).unproject(pc).sub(pc.position).normalize();
+  const onGround = (u, v) => { const d = ray(u, v); const t = (gy - cam.pos[1]) / d.y; return [cam.pos[0] + d.x * t, cam.pos[2] + d.z * t]; };
+  const heightAbove = (u, v, base) => { // height of image point (u, v) on the vertical through ground point base
+    const d = ray(u, v); const t = Math.hypot(base[0] - cam.pos[0], base[1] - cam.pos[2]) / Math.hypot(d.x, d.z);
+    return cam.pos[1] + d.y * t - gy;
+  };
   const yaw = THREE.MathUtils.degToRad(cam.yaw);
   const fwd = [Math.sin(yaw), -Math.cos(yaw)];
-  const left = [-Math.cos(yaw), -Math.sin(yaw)];
-  const P = (f, l) => [cam.pos[0] + fwd[0] * f + left[0] * l, cam.pos[2] + fwd[1] * f + left[1] * l];
   const b = new Builder({ x: 0, y: 0, z: 0 }, 0);
   const T = 'tomb', S = 'edin_stone';
-  const bays = 12;
-  const a = P(3, 8.5), c = P(62, 4.0);
+  const bays = 14;
+  const a = onGround(4, 81.5), c = onGround(70, 62.2);
+  const wallH = heightAbove(10, 45.8, onGround(10, 78.8));
   const ry = Math.atan2(-(c[1] - a[1]), c[0] - a[0]);
   const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
   const dir = [(c[0] - a[0]) / len, (c[1] - a[1]) / len];
@@ -330,7 +405,7 @@ export function buildKirkyard(cam) {
     const t = (i + 0.5) * bw;
     const x = a[0] + dir[0] * t, z = a[1] + dir[1] * t;
     const y = heightAt(x, z) - 0.3;
-    const hgt = 4.0 + ((i * 37) % 5) * 0.25;
+    const hgt = wallH * (0.92 + ((i * 37) % 5) * 0.03);
     b.box(T, bw - 0.25, hgt, 1.6, x, y, z, ry);
     // pilasters & cornice
     b.box(T, 0.5, hgt + 0.35, 2.0, x + dir[0] * (bw / 2 - 0.15), y, z + dir[1] * (bw / 2 - 0.15), ry);
@@ -349,22 +424,23 @@ export function buildKirkyard(cam) {
     b.add('tombdark', new THREE.BoxGeometry(bw * 0.3, hgt * 0.42, 0.06), px, y + hgt * 0.45, pzz, ry);
   }
   // obelisk
-  const ob = P(42, -11);
+  const ob = onGround(82, 66);
   const oy = heightAt(ob[0], ob[1]);
-  b.box(T, 1.6, 1.0, 1.6, ob[0], oy - 0.3, ob[1]);
-  b.box(T, 1.1, 1.4, 1.1, ob[0], oy + 0.7, ob[1]);
-  b.add(T, new THREE.CylinderGeometry(0.25, 0.55, 6.0, 4, 1), ob[0], oy + 2.1 + 3.0, ob[1], Math.PI / 4);
-  b.add(T, new THREE.ConeGeometry(0.3, 0.6, 4), ob[0], oy + 8.4, ob[1], Math.PI / 4);
+  const k = Math.min(1.2, heightAbove(82, 52.3, ob) / 8.7);   // as tall as it stands in the photograph
+  b.box(T, 1.6 * k, 1.0 * k, 1.6 * k, ob[0], oy - 0.3, ob[1]);
+  b.box(T, 1.1 * k, 1.4 * k, 1.1 * k, ob[0], oy + 0.7 * k, ob[1]);
+  b.add(T, new THREE.CylinderGeometry(0.25 * k, 0.55 * k, 6.0 * k, 4, 1), ob[0], oy + 5.1 * k, ob[1], Math.PI / 4);
+  b.add(T, new THREE.ConeGeometry(0.3 * k, 0.6 * k, 4), ob[0], oy + 8.4 * k, ob[1], Math.PI / 4);
   b.collideBox(ob[0], oy + 1, ob[1], 1.6, 3, 1.6);
   // headstones
-  const stones = [[6, -2, 0.3], [30, -14, -0.2], [48, -13, 0.1], [55, -15, 0.05], [24, -18, 0.25], [64, -9, -0.1], [3, 3.5, 0.6]];
-  for (const [f, l, tilt] of stones) {
-    const [x, z] = P(f, l);
+  const stones = [[17, 92.5, 0.6], [86, 64.5, -0.1], [95, 63.5, 0.05], [90, 63, 0.1], [99, 64.5, -0.2]];
+  for (const [u, v, tilt] of stones) {
+    const [x, z] = onGround(u, v);
     const y = heightAt(x, z) - 0.25;
     b.add(T, new THREE.BoxGeometry(0.9, 1.5, 0.22), x, y + 0.75, z, ry + 0.2, tilt * 0.3, tilt);
   }
   // low back wall on the far side of the lawn
-  const w0 = P(5, -22), w1 = P(70, -18);
+  const w0 = onGround(78, 66.5), w1 = onGround(99, 66);
   b.wall(S, w0[0], w0[1], w1[0], w1[1], heightAt((w0[0] + w1[0]) / 2, (w0[1] + w1[1]) / 2) - 0.6, 1.6, 0.6);
   return b;
 }
